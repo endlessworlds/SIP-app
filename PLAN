@@ -149,6 +149,31 @@ Update `pubspec.yaml` to match backend:
 
 👉 Now your dependencies + backend are aligned.
 
+
+Use this quick test flow anytime:
+
+Check install:
+command -v asterisk
+asterisk -V
+
+Check if running:
+ps aux | grep -i '[a]sterisk'
+
+If not running, start it:
+asterisk -C asterisk.conf -f -U asterisk -G asterisk
+(or for foreground logs: asterisk -cvvv)
+
+Health checks:
+asterisk -rx "core show uptime"
+asterisk -rx "core show channels"
+asterisk -rx "module show like res_pjsip"
+asterisk -rx "pjsip show endpoints"
+
+Functional SIP test:
+
+Register a softphone to one endpoint.
+Place a call to another local extension.
+Watch live logs with: asterisk -rvvv
 ---
 
 # 🔄 Production Upgrade (Twilio → Asterisk)

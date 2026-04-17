@@ -1,3 +1,19 @@
+## Local Asterisk DevContainer
+
+This repository includes a devcontainer that installs Asterisk and starts it in the foreground so the Flutter SIP prototype has a local backend during development.
+
+The container ships with two test users:
+- `1001` / `1234`
+- `1002` / `1234`
+
+Relevant Asterisk config lives in [.devcontainer/asterisk](../.devcontainer/asterisk). The WebSocket SIP transport listens on `ws://localhost:8088/ws`, and the PJSIP UDP transport listens on `5060`.
+
+To use it:
+1. Reopen the workspace in the devcontainer.
+2. Let Asterisk start automatically.
+3. Run `asterisk -rx "pjsip show endpoints"` inside the container to confirm the users are loaded.
+4. Point the Flutter app at `localhost` from inside the container, or use the host/container IP from an Android device on the same network.
+
 This is the plan:
 
 I want you to build an open-source competitor for SIP phone applications. To understand what a SIP phone software looks like, take a reference from Bria — it provides SIP phone functionality across both mobile and desktop.

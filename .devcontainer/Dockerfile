@@ -15,6 +15,7 @@ ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-too
 RUN apt-get update && apt-get install -y \
     curl wget unzip zip git \
     openjdk-17-jdk \
+    asterisk \
     adb \
     usbutils \
     udev \
@@ -61,5 +62,11 @@ ENV PATH=$PATH:/opt/flutter/bin
 # Pre-download Flutter tool binaries + accept Android licenses
 RUN flutter precache --android && \
     yes | flutter doctor --android-licenses || true
+
+COPY asterisk/ /etc/asterisk/
+
+EXPOSE 5060/udp 8088/tcp 10000-20000/udp
+
+CMD ["/usr/sbin/asterisk", "-f", "-U", "root", "-vvv"]
 
 WORKDIR /workspace
