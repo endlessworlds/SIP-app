@@ -144,36 +144,60 @@ Update `pubspec.yaml` to match backend:
 
 ### Add:
 
-- SIP client library (compatible with Asterisk)
-- UDP/TCP support if needed
+- SIP client library (compatible with Asterisk) ✅ `sip_ua: ^1.1.0`
+- UDP/TCP support ✅ Built-in
+- Secure storage ✅ `flutter_secure_storage: ^10.0.0`
+- Local storage ✅ `sqflite: ^2.4.2`
+- Permissions ✅ `permission_handler: ^12.0.1`
 
-👉 Now your dependencies + backend are aligned.
+👉 **Status: ✅ COMPLETE** - Dependencies + backend are aligned.
 
+---
 
-Use this quick test flow anytime:
+## 🧪 Quick Asterisk Test Flow (Anytime)
 
-Check install:
-command -v asterisk
-asterisk -V
+### 1️⃣ Check Installation
+```bash
+command -v asterisk && asterisk -V
+```
 
-Check if running:
+### 2️⃣ Check if Running
+```bash
 ps aux | grep -i '[a]sterisk'
+```
 
-If not running, start it:
+### 3️⃣ Start Asterisk (choose one)
+```bash
+# Background mode:
 asterisk -C asterisk.conf -f -U asterisk -G asterisk
-(or for foreground logs: asterisk -cvvv)
 
-Health checks:
+# Foreground with verbose logs (debugging):
+asterisk -cvvv
+```
+
+### 4️⃣ Health Checks
+```bash
+# Check uptime
 asterisk -rx "core show uptime"
+
+# Show active channels
 asterisk -rx "core show channels"
+
+# Check SIP module
 asterisk -rx "module show like res_pjsip"
+
+# Show SIP endpoints
 asterisk -rx "pjsip show endpoints"
+```
 
-Functional SIP test:
+### 5️⃣ Functional SIP Test
 
-Register a softphone to one endpoint.
-Place a call to another local extension.
-Watch live logs with: asterisk -rvvv
+1. Register a softphone to one endpoint
+2. Place a call to another local extension
+3. Watch live logs with:
+   ```bash
+   asterisk -rvvv
+   ```
 ---
 
 # 🔄 Production Upgrade (Twilio → Asterisk)

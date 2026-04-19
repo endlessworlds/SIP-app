@@ -1,4 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required permissions for SIP calling -->
+    <!-- Internet access for SIP server communication -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Microphone access for audio recording during calls -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Audio settings modification for speaker/mute controls -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Network state monitoring -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:label="my_flutter_app"
         android:name="${applicationName}"
