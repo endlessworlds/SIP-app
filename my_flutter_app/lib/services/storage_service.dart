@@ -59,7 +59,7 @@ class StorageService {
     final normalizedTransport = rawTransport.trim().toUpperCase();
     final transport = _supportedTransports.contains(normalizedTransport)
       ? normalizedTransport
-      : 'TCP';
+      : 'WS';
 
     if (transport != rawTransport) {
       await _secureStorage.write(key: _credentialsTransportKey, value: transport);

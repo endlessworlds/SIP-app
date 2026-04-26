@@ -63,7 +63,7 @@ class SipCredentials {
     port: 5060,
     username: '1001',
     password: '1234',
-    transport: 'TCP',
+    transport: 'WS',
   );
 }
 

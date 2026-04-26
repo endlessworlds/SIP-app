@@ -37,8 +37,13 @@ class _CallScreenState extends State<CallScreen> {
         builder: (context, _) {
           final number =
               _sipService.activeNumber.isEmpty ? destination : _sipService.activeNumber;
-          final isIncomingRinging =
-              _sipService.isIncomingActiveCall && _sipService.callStatus == ActiveCallStatus.ringing;
+            final isIncomingAwaitingAnswer = _sipService.isIncomingActiveCall &&
+              _sipService.callStatus != ActiveCallStatus.inCall &&
+              _sipService.callStatus != ActiveCallStatus.ended &&
+              _sipService.callStatus != ActiveCallStatus.failed;
+          final statusLabel = _sipService.callStatus == ActiveCallStatus.inCall
+            ? '${_sipService.statusMessage} • ${_sipService.formattedCallDuration}'
+            : _sipService.statusMessage;
 
           return SafeArea(
             child: Padding(
@@ -61,9 +66,7 @@ class _CallScreenState extends State<CallScreen> {
                   Center(
                     child: Chip(
                       avatar: const Icon(Icons.graphic_eq, size: 18),
-                      label: Text(
-                        '${_sipService.statusMessage} • ${_sipService.formattedCallDuration}',
-                      ),
+                      label: Text(statusLabel),
                       side: BorderSide(
                         color: Theme.of(context).colorScheme.outlineVariant,
                       ),
@@ -94,7 +97,7 @@ class _CallScreenState extends State<CallScreen> {
                     ],
                   ),
                   const Spacer(),
-                  if (isIncomingRinging)
+                  if (isIncomingAwaitingAnswer)
                     Row(
                       children: [
                         Expanded(

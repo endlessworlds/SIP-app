@@ -20,7 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  String _transport = 'UDP';
+  String _transport = 'WS';
 
   @override
   void initState() {
@@ -33,7 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final normalizedTransport = credentials.transport.trim().toUpperCase();
     _transport = _availableTransports.contains(normalizedTransport)
       ? normalizedTransport
-      : 'TCP';
+      : 'WS';
   }
 
   @override
