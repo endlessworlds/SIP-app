@@ -13,6 +13,33 @@ class CallScreen extends StatefulWidget {
 
 class _CallScreenState extends State<CallScreen> {
   final SipService _sipService = SipService.instance;
+  bool _navigatedForTerminalState = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sipService.addListener(_handleSipStateChanged);
+  }
+
+  @override
+  void dispose() {
+    _sipService.removeListener(_handleSipStateChanged);
+    super.dispose();
+  }
+
+  void _handleSipStateChanged() {
+    if (!_sipService.isCallInTerminalState || _navigatedForTerminalState) {
+      return;
+    }
+
+    _navigatedForTerminalState = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _endCallAndReturn();
+    });
+  }
 
   void _endCallAndReturn() {
     if (Navigator.canPop(context)) {
@@ -37,10 +64,9 @@ class _CallScreenState extends State<CallScreen> {
         builder: (context, _) {
           final number =
               _sipService.activeNumber.isEmpty ? destination : _sipService.activeNumber;
-            final isIncomingAwaitingAnswer = _sipService.isIncomingActiveCall &&
-              _sipService.callStatus != ActiveCallStatus.inCall &&
-              _sipService.callStatus != ActiveCallStatus.ended &&
-              _sipService.callStatus != ActiveCallStatus.failed;
+          final isIncomingAwaitingAnswer =
+              _sipService.isIncomingActiveCall &&
+              _sipService.callStatus == ActiveCallStatus.ringing;
           final statusLabel = _sipService.callStatus == ActiveCallStatus.inCall
             ? '${_sipService.statusMessage} • ${_sipService.formattedCallDuration}'
             : _sipService.statusMessage;

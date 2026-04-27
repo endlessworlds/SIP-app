@@ -12,7 +12,36 @@ To use it:
 1. Reopen the workspace in the devcontainer.
 2. Let Asterisk start automatically.
 3. Run `asterisk -rx "pjsip show endpoints"` inside the container to confirm the users are loaded.
-4. Point the Flutter app at `localhost` from inside the container, or use the host/container IP from an Android device on the same network.
+4. For Android phones, use the host/container LAN IP with `WS` transport on port `8088`.
+5. For Linux desktop running inside this devcontainer, you can use `localhost` with `WS` on `8088`.
+
+## Practical Test Setups
+
+### Phone to Phone (Android <-> Android)
+- Device A account: `1001` / `1234`
+- Device B account: `1002` / `1234`
+- Both devices: same Wi-Fi as the devcontainer host
+- App settings on both devices:
+  - Server: `<host_lan_ip>`
+  - Port: `8088`
+  - Transport: `WS`
+
+### Laptop to Phone (Linux desktop <-> Android)
+- Linux desktop app account: `1002` / `1234`
+- Android app account: `1001` / `1234`
+- Linux desktop app settings:
+  - Server: `localhost` (if app runs in this devcontainer)
+  - Port: `8088`
+  - Transport: `WS`
+- Android app settings:
+  - Server: `<host_lan_ip>`
+  - Port: `8088`
+  - Transport: `WS`
+
+If using a UDP softphone on laptop instead of Flutter Linux, use:
+- Account `2001` or `2002`
+- Transport `UDP`
+- Port `5060`
 
 This is the plan:
 

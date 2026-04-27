@@ -72,8 +72,10 @@ wait_for_log_pattern() {
 
 run_happy_path() {
   info "Running happy-path simulation"
-  asterisk -rx "channel originate Local/9100@sip-sim extension 9101@sip-sim" >/dev/null
-  wait_for_log_pattern '^ENDED\|' 20
+  asterisk -rx "channel originate Local/9100@sip-sim application Wait 1" >/dev/null
+  asterisk -rx "channel originate Local/9101@sip-sim application Wait 1" >/dev/null
+  wait_for_log_pattern '^ENDED\|leg=caller' 20
+  wait_for_log_pattern '^ENDED\|leg=callee' 20
   verify_ordered_states "$EXPECTED_DIR/flutter_call_state_order.txt" ""
 
   if ! grep -q '^CONFIRMED|leg=callee' "$EVENT_LOG"; then
