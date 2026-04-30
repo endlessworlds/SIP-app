@@ -91,6 +91,21 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
 
   bool get _isMobileRuntime => Platform.isAndroid || Platform.isIOS;
 
+  bool _isLoopbackHost(String host) {
+    final normalized = host.trim().toLowerCase();
+    return normalized == 'localhost' ||
+        normalized == '127.0.0.1' ||
+        normalized == '::1';
+  }
+
+  String _mobileTransportGuidance() {
+    return 'Android SIP/WebRTC requires WS transport to the Asterisk host LAN IP on port 8088.';
+  }
+
+  bool get isCallInTerminalState =>
+      _callStatus == ActiveCallStatus.ended ||
+      _callStatus == ActiveCallStatus.failed;
+
   Future<void> initialize() async {
     _helper.addSipUaHelperListener(this);
     await _storageService.init();
@@ -119,19 +134,21 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
       return;
     }
 
-    final permission = await Permission.microphone.request();
-    if (!permission.isGranted) {
-      _lastError = 'Microphone permission is required for calls.';
-      _registrationStatus = SipRegistrationStatus.failed;
-      _statusMessage = _lastError;
-      notifyListeners();
-      return;
+    if (_isMobileRuntime) {
+      final permission = await Permission.microphone.request();
+      if (!permission.isGranted) {
+        _lastError = 'Microphone permission is required for calls.';
+        _registrationStatus = SipRegistrationStatus.failed;
+        _statusMessage = _lastError;
+        notifyListeners();
+        return;
+      }
     }
 
     _stopUaIfStarted();
 
     _registrationStatus = SipRegistrationStatus.registering;
-    _statusMessage = 'Registering...';
+    _statusMessage = 'REGISTRATION_ATTEMPT: Registering...';
     _pendingRegister = true;
     _registerTimeoutTimer?.cancel();
     _registerTimeoutTimer = Timer(const Duration(seconds: 15), () {
@@ -139,7 +156,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
         _stopUaIfStarted();
         _pendingRegister = false;
         _registrationStatus = SipRegistrationStatus.failed;
-        _statusMessage = 'Registration timeout';
+        _statusMessage = 'REGISTRATION_FAILED: timeout';
         _lastError =
             'Could not complete SIP registration. Check server, transport and network.';
         notifyListeners();
@@ -150,36 +167,37 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
     try {
       var effective = _normalizeForPlatform(_credentials);
 
-      if (_isMobileRuntime &&
-          effective.transport.trim().toUpperCase() == 'TCP') {
-        final wsCandidate = effective.copyWith(transport: 'WS');
-        final wsIssue = await _preflightConnectivityIssue(wsCandidate);
-        if (wsIssue == null) {
-          effective = wsCandidate;
-          _statusMessage = 'Using WebSocket transport for WebRTC...';
-          notifyListeners();
-        }
+      if (_isMobileRuntime && _isLoopbackHost(effective.server)) {
+        _registerTimeoutTimer?.cancel();
+        _stopUaIfStarted();
+        _pendingRegister = false;
+        _registrationStatus = SipRegistrationStatus.failed;
+        _statusMessage = 'REGISTRATION_FAILED';
+        _lastError =
+            'Mobile SIP clients cannot use localhost or 127.0.0.1. Enter the Asterisk host LAN IP instead.';
+        notifyListeners();
+        return;
+      }
+
+      if (_isMobileRuntime && effective.transport.trim().toUpperCase() != 'WS') {
+        _registerTimeoutTimer?.cancel();
+        _stopUaIfStarted();
+        _pendingRegister = false;
+        _registrationStatus = SipRegistrationStatus.failed;
+        _statusMessage = 'REGISTRATION_FAILED';
+        _lastError = _mobileTransportGuidance();
+        notifyListeners();
+        return;
       }
 
       var preflightIssue = await _preflightConnectivityIssue(effective);
-
-      if (preflightIssue != null && Platform.isAndroid) {
-        final localhostCandidate = effective.copyWith(server: 'localhost');
-        final localhostIssue = await _preflightConnectivityIssue(localhostCandidate);
-        if (localhostIssue == null) {
-          effective = localhostCandidate;
-          preflightIssue = null;
-          _statusMessage = 'Using USB tunnel via localhost...';
-          notifyListeners();
-        }
-      }
 
       if (preflightIssue != null) {
         _registerTimeoutTimer?.cancel();
         _stopUaIfStarted();
         _pendingRegister = false;
         _registrationStatus = SipRegistrationStatus.failed;
-        _statusMessage = 'Registration failed';
+        _statusMessage = 'REGISTRATION_FAILED';
         _lastError = preflightIssue;
         notifyListeners();
         return;
@@ -200,7 +218,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
 
       final uaSettings = UaSettings()
         ..host = effective.server
-        ..port = signalPort.toString()
+        ..port = (isWs ? wsPort : signalPort).toString()
         ..uri = sipUri
         ..authorizationUser = effective.username
         ..password = effective.password
@@ -220,7 +238,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
       _stopUaIfStarted();
       _pendingRegister = false;
       _registrationStatus = SipRegistrationStatus.failed;
-      _statusMessage = 'Registration failed';
+      _statusMessage = 'REGISTRATION_FAILED';
       _lastError = error.toString();
       notifyListeners();
     }
@@ -228,13 +246,9 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
 
   SipCredentials _normalizeForPlatform(SipCredentials input) {
     final normalizedTransport = input.transport.trim().toUpperCase();
-    var safeTransport = normalizedTransport == 'TCP' || normalizedTransport == 'WS'
+    final safeTransport = normalizedTransport == 'TCP' || normalizedTransport == 'WS'
         ? normalizedTransport
         : 'WS';
-
-    if (_isMobileRuntime) {
-      safeTransport = 'WS';
-    }
 
     return input.copyWith(
       server: input.server.trim(),
@@ -279,6 +293,19 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
 
     final effective = _normalizeForPlatform(_runtimeCredentials);
     final transport = _resolveTransport(effective.transport.trim().toUpperCase());
+    if (_isMobileRuntime && _isLoopbackHost(effective.server)) {
+      _lastError =
+          'Mobile SIP clients cannot place calls to localhost or 127.0.0.1. Use the Asterisk host LAN IP.';
+      notifyListeners();
+      return false;
+    }
+
+    if (_isMobileRuntime && transport != TransportType.WS) {
+      _lastError = _mobileTransportGuidance();
+      notifyListeners();
+      return false;
+    }
+
     final callTarget = transport == TransportType.WS
       ? 'sip:$target@${effective.server}:8088'
       : 'sip:$target@${effective.server}:${effective.port}';
@@ -295,7 +322,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
     _callWasConnected = false;
     _callStatus = ActiveCallStatus.connecting;
     _isIncomingActiveCall = false;
-    _statusMessage = 'Calling $target';
+    _statusMessage = 'CALL_INITIATION: Dialing $target';
     notifyListeners();
     return true;
   }
@@ -309,7 +336,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
     try {
       call.answer(_helper.buildCallOptions(true));
       _callStatus = ActiveCallStatus.connecting;
-      _statusMessage = 'Answering...';
+      _statusMessage = 'ACCEPTED: Answering...';
       notifyListeners();
     } catch (error) {
       _callStatus = ActiveCallStatus.failed;
@@ -393,6 +420,23 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
       return 'Remote SIP endpoint does not support WebRTC DTLS-SRTP. Register with WS transport and enable DTLS-SRTP/WebRTC on PBX endpoint.';
     }
     return rawError;
+  }
+
+  String _describeCallFailure(String rawError) {
+    final lower = rawError.toLowerCase();
+    if (lower.contains('486') || lower.contains('busy')) {
+      return '486 Busy Here';
+    }
+    if (lower.contains('408') || lower.contains('no answer')) {
+      return '408 Request Timeout (no answer)';
+    }
+    if (lower.contains('403') || lower.contains('forbidden')) {
+      return '403 Forbidden';
+    }
+    if (lower.contains('401') || lower.contains('407') || lower.contains('unauthorized')) {
+      return 'Authentication challenge failed';
+    }
+    return _describeWebRtcFailure(rawError);
   }
 
   String _describeRegistrationFailure(String rawError) {
@@ -499,25 +543,32 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
           _activateIncomingUi();
         } else {
           _callStatus = ActiveCallStatus.connecting;
-          _statusMessage = 'Dialing $_activeNumber';
+          _statusMessage = 'CALL_INITIATION: Dialing $_activeNumber';
         }
         break;
       case CallStateEnum.CONNECTING:
-      case CallStateEnum.PROGRESS:
         if (incoming && !_callWasConnected) {
           _activateIncomingUi();
         } else {
           _callStatus = ActiveCallStatus.connecting;
-          _statusMessage = 'Connecting...';
+          _statusMessage = 'CONNECTING';
+        }
+        break;
+      case CallStateEnum.PROGRESS:
+        if (incoming && !_callWasConnected) {
+          _activateIncomingUi();
+        } else {
+          _callStatus = ActiveCallStatus.ringing;
+          _statusMessage = 'PROGRESS: Ringing...';
         }
         break;
       case CallStateEnum.ACCEPTED:
-        _callStatus = ActiveCallStatus.connecting;
-        _statusMessage = 'Connecting...';
+        _callStatus = ActiveCallStatus.accepted;
+        _statusMessage = 'ACCEPTED';
         break;
       case CallStateEnum.CONFIRMED:
         _callStatus = ActiveCallStatus.inCall;
-        _statusMessage = 'In call';
+        _statusMessage = 'CONFIRMED: In call';
         _callStartedAt ??= DateTime.now();
         _callWasConnected = true;
         break;
@@ -534,7 +585,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
         final wasIncoming = _isIncomingActiveCall || incoming;
         final wasConnected = _callWasConnected;
         _callStatus = ActiveCallStatus.ended;
-        _statusMessage = 'Call ended';
+        _statusMessage = 'ENDED';
         _callEndedAt = endedAt;
         unawaited(
           _persistCallLog(
@@ -556,11 +607,11 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
         _callStatus = ActiveCallStatus.failed;
         final cause = state.cause?.toString();
         final friendlyCause = cause != null && cause.isNotEmpty
-          ? _describeWebRtcFailure(cause)
+          ? _describeCallFailure(cause)
           : '';
         _statusMessage = friendlyCause.isNotEmpty
-          ? 'Call failed: $friendlyCause'
-          : 'Call failed';
+          ? 'FAILED: $friendlyCause'
+          : 'FAILED';
         if (friendlyCause.isNotEmpty) {
           _lastError = friendlyCause;
         }
@@ -610,7 +661,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
         _registerTimeoutTimer?.cancel();
         _pendingRegister = false;
         _registrationStatus = SipRegistrationStatus.registered;
-        _statusMessage = 'Registered';
+        _statusMessage = 'REGISTERED';
         _lastError = '';
         break;
       case RegistrationStateEnum.REGISTRATION_FAILED:
@@ -620,7 +671,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
         _registrationStatus = SipRegistrationStatus.failed;
         final cause = state.cause.toString();
         final friendly = _describeRegistrationFailure(cause);
-        _statusMessage = 'Registration failed';
+        _statusMessage = 'REGISTRATION_FAILED';
         _lastError = friendly;
         break;
       case RegistrationStateEnum.UNREGISTERED:
@@ -628,7 +679,7 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
         _uaStarted = false;
         _pendingRegister = false;
         _registrationStatus = SipRegistrationStatus.unregistered;
-        _statusMessage = 'Unregistered';
+        _statusMessage = 'UNREGISTERED';
         break;
       case RegistrationStateEnum.NONE:
       case null:

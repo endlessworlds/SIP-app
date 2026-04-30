@@ -10,6 +10,7 @@ enum ActiveCallStatus {
   idle,
   ringing,
   connecting,
+  accepted,
   inCall,
   ended,
   failed,
@@ -59,8 +60,8 @@ class SipCredentials {
       port > 0;
 
   static const SipCredentials defaults = SipCredentials(
-    server: 'localhost',
-    port: 5060,
+    server: '',
+    port: 8088,
     username: '1001',
     password: '1234',
     transport: 'WS',

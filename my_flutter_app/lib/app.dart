@@ -51,6 +51,10 @@ class _SipAppState extends State<SipApp> {
 
   @override
   Widget build(BuildContext context) {
+    final initialRoute = SipService.instance.credentials.isValid
+        ? AppRoutes.dialpad
+        : AppRoutes.settings;
+
     return MaterialApp(
       navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
@@ -59,7 +63,7 @@ class _SipAppState extends State<SipApp> {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
       ),
-      initialRoute: AppRoutes.dialpad,
+      initialRoute: initialRoute,
       routes: {
         AppRoutes.settings: (_) => const SettingsScreen(),
         AppRoutes.dialpad: (_) => const DialpadScreen(),

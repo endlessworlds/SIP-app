@@ -69,7 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     controller: _serverController,
                     decoration: const InputDecoration(
                       labelText: 'SIP Server',
-                      hintText: 'e.g. localhost',
+                      hintText: 'e.g. 192.168.1.20',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -79,7 +79,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'Port',
-                      hintText: '5060',
+                      hintText: '8088',
                       border: OutlineInputBorder(),
                     ),
                   ),
