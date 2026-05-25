@@ -166,7 +166,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () async {
-                        await _sipService.unregister();
+                        await _sipService.unregister(explicit: true);
                       },
                       child: const Text('Unregister'),
                     ),
