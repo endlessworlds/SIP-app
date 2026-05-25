@@ -6,10 +6,11 @@ if pgrep -x asterisk >/dev/null 2>&1; then
   exit 0
 fi
 
-ASTERISK_CONF="asterisk.conf"
-if [ -f "/etc/asterisk/asterisk.conf" ]; then
-  ASTERISK_CONF="/etc/asterisk/asterisk.conf"
-fi
+# Copy devcontainer asterisk configs to /etc/asterisk
+echo "[devcontainer] Copying Asterisk configs..."
+cp /workspaces/SIP-app/.devcontainer/asterisk/*.conf /etc/asterisk/
+
+ASTERISK_CONF="/etc/asterisk/asterisk.conf"
 
 ASTERISK_USER="root"
 ASTERISK_GROUP="root"
@@ -19,7 +20,6 @@ if id -u asterisk >/dev/null 2>&1; then
 fi
 
 echo "[devcontainer] Starting Asterisk in background..."
-
 if command -v adb >/dev/null 2>&1; then
   adb reverse tcp:5060 tcp:5060 >/dev/null 2>&1 || true
   adb reverse tcp:8088 tcp:8088 >/dev/null 2>&1 || true
@@ -35,5 +35,4 @@ if ! asterisk -rx "core show uptime" >/dev/null 2>&1; then
   echo "[devcontainer] Failed to start Asterisk. See /tmp/asterisk.log"
   exit 1
 fi
-
 echo "[devcontainer] Asterisk started"
