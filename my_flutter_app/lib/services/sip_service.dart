@@ -6,6 +6,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:sip_ua/sip_ua.dart';
 
 import 'audio_service.dart';
+import 'android_app_launcher.dart';
+import 'android_incoming_notification_service.dart';
+import 'android_keep_alive_service.dart';
 import 'models.dart';
 import 'storage_service.dart';
 
@@ -58,12 +61,12 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
   bool _pendingRegister = false;
   Timer? _registerTimeoutTimer;
   bool _uaStarted = false;
+  bool _incomingForegroundRequested = false;
 
   void _stopUaIfStarted() {
     if (!_uaStarted) {
       return;
     }
-    _helper.stop();
     _uaStarted = false;
   }
 
@@ -142,6 +145,10 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
         _statusMessage = _lastError;
         notifyListeners();
         return;
+      }
+
+      if (Platform.isAndroid) {
+        await Permission.notification.request();
       }
     }
 
@@ -233,9 +240,14 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
 
       await _helper.start(uaSettings);
       _uaStarted = true;
+
+      if (_isMobileRuntime) {
+        await AndroidKeepAliveService.start();
+      }
     } catch (error) {
       _registerTimeoutTimer?.cancel();
       _stopUaIfStarted();
+      await AndroidKeepAliveService.stop();
       _pendingRegister = false;
       _registrationStatus = SipRegistrationStatus.failed;
       _statusMessage = 'REGISTRATION_FAILED';
@@ -257,23 +269,38 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
     );
   }
 
-  Future<void> unregister() async {
+  /// Unregister from the SIP server.
+  ///
+  /// Set [explicit] to true when the action is initiated directly by the
+  /// user (for example from the Settings UI). Programmatic shutdown paths
+  /// should call this with `explicit: false` to avoid actively sending an
+  /// UNREGISTER request when the app is being closed by the OS.
+  Future<void> unregister({bool explicit = true}) async {
     _pendingRegister = false;
     _registerTimeoutTimer?.cancel();
-    try {
-      await _helper.unregister(true);
-      _stopUaIfStarted();
-      _runtimeCredentials = _credentials;
-      _registrationStatus = SipRegistrationStatus.unregistered;
-      _statusMessage = 'Unregistered';
-      notifyListeners();
-    } catch (_) {
-      _stopUaIfStarted();
-      _runtimeCredentials = _credentials;
-      _registrationStatus = SipRegistrationStatus.unregistered;
-      _statusMessage = 'Unregistered';
-      notifyListeners();
+
+    if (kDebugMode) {
+      print('SipService.unregister called (explicit=$explicit)');
     }
+
+    if (explicit) {
+      try {
+        if (kDebugMode) print('Sending explicit SIP UNREGISTER');
+        await _helper.unregister(true);
+      } catch (e) {
+        if (kDebugMode) print('Explicit unregister failed: $e');
+      }
+    } else {
+      if (kDebugMode) print('Skipping explicit UNREGISTER for programmatic shutdown');
+    }
+
+    // Always stop local UA state without forcing a network UNREGISTER.
+    _stopUaIfStarted();
+    await AndroidKeepAliveService.stop();
+    _runtimeCredentials = _credentials;
+    _registrationStatus = SipRegistrationStatus.unregistered;
+    _statusMessage = 'Unregistered';
+    notifyListeners();
   }
 
   Future<bool> makeCall(String destination) async {
@@ -492,6 +519,12 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
     _callStatus = ActiveCallStatus.ringing;
     _statusMessage = 'Incoming call from $_activeNumber';
     _incomingNavigationPending = true;
+
+    if (Platform.isAndroid && !_incomingForegroundRequested) {
+      _incomingForegroundRequested = true;
+      unawaited(AndroidAppLauncher.bringToFront());
+      unawaited(AndroidIncomingNotificationService.showIncomingCall(_activeNumber));
+    }
   }
 
   Future<void> _persistCallLog({
@@ -645,8 +678,12 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
 
   void _resetCallUiState() {
     unawaited(_audioService.reset());
+    if (Platform.isAndroid) {
+      unawaited(AndroidIncomingNotificationService.cancelIncomingCall());
+    }
     _isMuted = false;
     _incomingNavigationPending = false;
+    _incomingForegroundRequested = false;
     _isIncomingActiveCall = false;
     _callWasConnected = false;
     _activeNumber = '';
