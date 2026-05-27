@@ -80,12 +80,22 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
       final socket = await Socket.connect(
         effective.server,
         targetPort,
-        timeout: const Duration(seconds: 3),
+        timeout: const Duration(seconds: 8),
       );
       await socket.close();
       return null;
     } on SocketException catch (error) {
       final reason = error.message;
+      if (reason.toLowerCase().contains('failed host lookup')) {
+        return 'Invalid SIP server "${effective.server}". Enter only the host/IP (for example 192.168.1.20), not a full URL like ws://...';
+      }
+
+      // Network timeouts can be transient on mobile networks; let SIP UA
+      // attempt the real WebSocket registration before failing fast.
+      if (reason.toLowerCase().contains('timed out')) {
+        return null;
+      }
+
       return 'Cannot reach ${effective.server}:$targetPort ($reason). Make sure phone and SIP server are reachable on the same network.';
     } catch (_) {
       return null;
@@ -112,8 +122,20 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
   Future<void> initialize() async {
     _helper.addSipUaHelperListener(this);
     await _storageService.init();
-    _credentials = await _storageService.loadCredentials();
-    _runtimeCredentials = _credentials;
+    final loaded = await _storageService.loadCredentials();
+    final normalized = _normalizeForPlatform(loaded);
+    _credentials = normalized;
+    _runtimeCredentials = normalized;
+
+    final shouldPersistNormalized =
+        normalized.server != loaded.server ||
+        normalized.port != loaded.port ||
+        normalized.username != loaded.username ||
+        normalized.password != loaded.password ||
+        normalized.transport != loaded.transport;
+    if (shouldPersistNormalized) {
+      await _storageService.saveCredentials(normalized);
+    }
 
     notifyListeners();
   }
@@ -261,12 +283,40 @@ class SipService extends ChangeNotifier implements SipUaHelperListener {
     final safeTransport = normalizedTransport == 'TCP' || normalizedTransport == 'WS'
         ? normalizedTransport
         : 'WS';
+    final safeServer = _sanitizeServerHost(input.server);
 
     return input.copyWith(
-      server: input.server.trim(),
+      server: safeServer,
       username: input.username.trim(),
       transport: safeTransport,
     );
+  }
+
+  String _sanitizeServerHost(String rawServer) {
+    var value = rawServer.trim();
+    if (value.isEmpty) {
+      return value;
+    }
+
+    final literalAddress = InternetAddress.tryParse(value);
+    if (literalAddress != null) {
+      return value;
+    }
+
+    var parseTarget = value;
+    if (!parseTarget.contains('://')) {
+      parseTarget = 'ws://$parseTarget';
+    }
+
+    final uri = Uri.tryParse(parseTarget);
+    if (uri != null && uri.host.isNotEmpty) {
+      return uri.host;
+    }
+
+    // Last-resort cleanup for malformed values such as ws://host/ws entered manually.
+    value = value.replaceFirst(RegExp(r'^wss?://', caseSensitive: false), '');
+    value = value.split('/').first;
+    return value;
   }
 
   /// Unregister from the SIP server.
