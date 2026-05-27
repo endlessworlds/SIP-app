@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 import 'screens/call_log_screen.dart';
 import 'screens/call_screen.dart';
 import 'screens/dialpad_screen.dart';
 import 'screens/settings_screen.dart';
 import 'services/sip_service.dart';
+import 'services/models.dart';
 
 class AppRoutes {
   static const String settings = '/settings';
@@ -22,17 +24,41 @@ class SipApp extends StatefulWidget {
 
 class _SipAppState extends State<SipApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  bool _startupReconnectAttempted = false;
 
   @override
   void initState() {
     super.initState();
     SipService.instance.addListener(_onSipStateChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _attemptStartupReconnect();
+    });
   }
 
   @override
   void dispose() {
     SipService.instance.removeListener(_onSipStateChanged);
     super.dispose();
+  }
+
+  Future<void> _attemptStartupReconnect() async {
+    if (_startupReconnectAttempted || !mounted) {
+      return;
+    }
+
+    _startupReconnectAttempted = true;
+
+    final service = SipService.instance;
+    if (service.registrationStatus != SipRegistrationStatus.idle) {
+      return;
+    }
+
+    if (!service.credentials.isValid) {
+      return;
+    }
+
+    await service.unregister(explicit: false);
+    await service.register();
   }
 
   void _onSipStateChanged() {
