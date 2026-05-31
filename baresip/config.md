@@ -1,0 +1,1 @@
+install baresip and use this <sip:2001@127.0.0.1;transport=udp>;auth_pass=1234 config
