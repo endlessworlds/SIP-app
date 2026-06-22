@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app.dart';
 import '../services/models.dart';
 import '../services/sip_service.dart';
+import '../widgets/glass_widgets.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -49,138 +50,149 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('SIP Settings')),
+    return GlassScaffold(
+      appBar: AppBar(
+        title: const Text('SIP Settings', style: TextStyle(fontWeight: FontWeight.w300)),
+        centerTitle: true,
+      ),
       body: AnimatedBuilder(
         animation: _sipService,
         builder: (context, _) {
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Account Configuration',
-                    style: Theme.of(context).textTheme.titleMedium,
+          return SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottomInset),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Account Configuration',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w300,
+                    color: Colors.white,
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _serverController,
-                    decoration: const InputDecoration(
-                      labelText: 'SIP Server',
-                      hintText: 'e.g. 192.168.1.20',
-                      border: OutlineInputBorder(),
+                ),
+                const SizedBox(height: 24),
+                GlassTextField(
+                  controller: _serverController,
+                  labelText: 'SIP Server',
+                  hintText: 'e.g. 192.168.1.20',
+                ),
+                const SizedBox(height: 16),
+                GlassTextField(
+                  controller: _portController,
+                  keyboardType: TextInputType.number,
+                  labelText: 'Port',
+                  hintText: '8088',
+                ),
+                const SizedBox(height: 16),
+                GlassContainer(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _transport,
+                      dropdownColor: const Color(0xFF1A1A1A),
+                      icon: const Icon(Icons.arrow_drop_down, color: Colors.white70),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      isExpanded: true,
+                      items: const [
+                        DropdownMenuItem(value: 'TCP', child: Text('TCP')),
+                        DropdownMenuItem(value: 'WS', child: Text('WebSocket (WS)')),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() => _transport = value);
+                      },
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _portController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Port',
-                      hintText: '8088',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    value: _transport,
-                    items: const [
-                      DropdownMenuItem(value: 'TCP', child: Text('TCP')),
-                      DropdownMenuItem(value: 'WS', child: Text('WebSocket (WS)')),
+                ),
+                const SizedBox(height: 16),
+                GlassTextField(
+                  controller: _usernameController,
+                  labelText: 'Username',
+                ),
+                const SizedBox(height: 16),
+                GlassTextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  labelText: 'Password',
+                ),
+                const SizedBox(height: 24),
+                GlassContainer(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Colors.white70, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Status: ${_sipService.statusMessage}',
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_sipService.lastError.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _sipService.lastError,
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ],
                     ],
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() => _transport = value);
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Transport',
-                      border: OutlineInputBorder(),
-                    ),
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Password',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Status: ${_sipService.statusMessage}'),
-                  if (_sipService.lastError.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        _sipService.lastError,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                const SizedBox(height: 32),
+                GlassButton(
+                  color: Colors.blueAccent,
+                  onPressed: () async {
+                    final next = SipCredentials(
+                      server: _serverController.text.trim(),
+                      port: int.tryParse(_portController.text.trim()) ?? 0,
+                      username: _usernameController.text.trim(),
+                      password: _passwordController.text,
+                      transport: _transport,
+                    );
+                    await _sipService.saveCredentials(next);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('SIP settings saved.')),
+                    );
+                  },
+                  child: const Text('Save Settings', style: TextStyle(color: Colors.white, fontSize: 16)),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GlassButton(
+                        color: Colors.greenAccent,
+                        onPressed: () async {
+                          await _sipService.register();
+                        },
+                        child: const Text('Register', style: TextStyle(color: Colors.white, fontSize: 16)),
                       ),
                     ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: () async {
-                        final next = SipCredentials(
-                          server: _serverController.text.trim(),
-                          port: int.tryParse(_portController.text.trim()) ?? 0,
-                          username: _usernameController.text.trim(),
-                          password: _passwordController.text,
-                          transport: _transport,
-                        );
-                        await _sipService.saveCredentials(next);
-                        if (!context.mounted) {
-                          return;
-                        }
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('SIP settings saved.')),
-                        );
-                      },
-                      child: const Text('Save Settings'),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: GlassButton(
+                        color: Colors.orangeAccent,
+                        onPressed: () async {
+                          await _sipService.unregister(explicit: true);
+                        },
+                        child: const Text('Unregister', style: TextStyle(color: Colors.white, fontSize: 16)),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonal(
-                      onPressed: () async {
-                        await _sipService.register();
-                      },
-                      child: const Text('Register'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () async {
-                        await _sipService.unregister(explicit: true);
-                      },
-                      child: const Text('Unregister'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pushNamed(context, AppRoutes.dialpad),
-                      child: const Text('Go To Dialpad'),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                GlassButton(
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.dialpad),
+                  child: const Text('Go To Dialpad', style: TextStyle(color: Colors.white, fontSize: 16)),
+                ),
+              ],
             ),
           );
         },
